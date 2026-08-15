@@ -8,13 +8,15 @@ export type AreaId = "conversation" | "trajectory" | "sidebar" | "settings";
 /**
  * A backgroundable surface:
  * - the four built-in area ids above;
+ * - `panel-right` / `panel-bottom` for the WHOLE vscode-sidebar panels
+ *   (whatever tab is inside, the entire panel shows one background);
  * - `panel-right:<tabTitle>` / `panel-bottom:<tabTitle>` for individual
- *   dsh-better-sidebar tabs (discovered from the DOM at runtime; persisted
+ *   vscode-sidebar tabs (discovered from the DOM at runtime; persisted
  *   per title so a tab's background survives close/reopen).
  */
 export type SurfaceId = string;
 
-/** Which panel a tab surface belongs to. */
+/** Which panel a surface belongs to. */
 export type SurfaceGroup = "builtin" | "panel-right" | "panel-bottom" | "group";
 
 /** Display metadata for one surface (for the settings list). */

@@ -4,7 +4,7 @@
  * paints each surface's layer pair, and emits `background/change` snapshots.
  *
  * Surfaces: the four built-in areas (conversation / trajectory / sidebar /
- * settings) plus one surface PER dsh-better-sidebar tab (`panel-right:<title>`
+ * settings) plus one surface PER dsh-plugin-vscode-sidebar tab (`panel-right:<title>`
  * / `panel-bottom:<title>`, discovered from the DOM and persisted per title
  * so a tab's background survives close/reopen). Each surface owns TWO stacked
  * layer elements (a/b) so media switches can crossfade: the incoming layer
@@ -57,9 +57,15 @@ const FADE_SETTLE_MS = FADE_MS + 80;
 /** Which physical layer element is which. */
 type LayerIndex = 0 | 1;
 
-/** True when a surface id is a better-sidebar tab surface. */
+/** True when a surface id is a vscode-sidebar tab surface. */
 function isTabSurface(surface: SurfaceId): boolean {
 	return surface.startsWith("panel-right:") || surface.startsWith("panel-bottom:");
+}
+
+/** True when a surface id is a WHOLE vscode-sidebar panel (right / bottom):
+ * the entire panel paints one background no matter which tab is inside. */
+function isPanelSurface(surface: SurfaceId): boolean {
+	return surface === "panel-right" || surface === "panel-bottom";
 }
 
 /** The CSS/data-attribute token of a surface (tab titles carry arbitrary
@@ -71,7 +77,7 @@ function surfaceToken(surface: SurfaceId): string {
 export class BackgroundService {
 	private ctx: BackgroundCtx;
 	private state: BackgroundState;
-	/** The current surface set: built-in areas + discovered better-sidebar tabs. */
+	/** The current surface set: built-in areas + discovered vscode-sidebar tabs. */
 	private surfaces = new Set<SurfaceId>();
 	/** Tab surface → its paneTab host element (from the last discovery pass). */
 	private tabHosts = new Map<SurfaceId, HTMLElement>();
@@ -249,7 +255,9 @@ export class BackgroundService {
 		if (cfg === undefined) return;
 		if (index < 0 || index >= cfg.images.length) return;
 		const [removed] = cfg.images.splice(index, 1);
-		if (removed.source === "file") {
+		if (removed.source === "file" && !this.fileReferencedElsewhere(removed.fileId, surface)) {
+			// Merged-group copies share one stored blob: deleting the bytes
+			// here would break every other surface still referencing the file.
 			deleteStoredFile(removed.fileId);
 			this.revokeFileUrl(removed.fileId);
 		}
@@ -355,7 +363,7 @@ export class BackgroundService {
 
 	/** True when the element carries a CSS-module class whose local name
 	 * ends with `suffix` (e.g. `_paneContent`). Hash prefixes vary per
-	 * better-sidebar build, local names do not. */
+	 * vscode-sidebar build, local names do not. */
 	private hasClass(el: Element, suffix: string): boolean {
 		for (const name of Array.from(el.classList)) {
 			if (name.endsWith(suffix)) return true;
@@ -363,13 +371,13 @@ export class BackgroundService {
 		return false;
 	}
 
-	/** Resolve one better-sidebar panel host and mark it for the CSS. The
+	/** Resolve one vscode-sidebar panel host and mark it for the CSS. The
 	 * panels are fixed-position direct children of the plugin's mount host
-	 * ([data-dsh-better-sidebar] on body): the right panel carries an inline
-	 * width, the bottom panel an inline height. Returns null while that
-	 * plugin is absent — original-dsh profiles see no layers here. */
-	private betterPanelHost(kind: "right" | "bottom"): HTMLElement | null {
-		const host = document.querySelector("[data-dsh-better-sidebar]");
+	 * ([data-dsh-plugin-vscode-sidebar] on body): the right panel carries an
+	 * inline width, the bottom panel an inline height. Returns null while
+	 * that plugin is absent. */
+	private sidebarPanelHost(kind: "right" | "bottom"): HTMLElement | null {
+		const host = document.querySelector("[data-dsh-plugin-vscode-sidebar]");
 		if (!(host instanceof HTMLElement)) return null;
 		for (const child of Array.from(host.children)) {
 			if (!(child instanceof HTMLElement)) continue;
@@ -387,7 +395,7 @@ export class BackgroundService {
 		return null;
 	}
 
-	/** Discover every better-sidebar tab surface: for each pane, the tab-bar
+	/** Discover every vscode-sidebar tab surface: for each pane, the tab-bar
 	 * items (in order) name the pane's content divs (same order — both render
 	 * pane.tabs in order), so tab i's content div hosts the surface
 	 * `panel-<kind>:<tabTitle>`. Content divs get tagged with
@@ -398,7 +406,7 @@ export class BackgroundService {
 	private discoverTabSurfaces(): Map<SurfaceId, { host: HTMLElement; label: string }> {
 		const out = new Map<SurfaceId, { host: HTMLElement; label: string }>();
 		for (const kind of ["right", "bottom"] as const) {
-			const panel = this.betterPanelHost(kind);
+			const panel = this.sidebarPanelHost(kind);
 			if (panel === null) continue;
 			const panes: HTMLElement[] = [];
 			for (const el of panel.querySelectorAll("*")) {
@@ -441,10 +449,16 @@ export class BackgroundService {
 	}
 
 	/** Rebuild the current surface set from the built-in areas plus the
-	 * discovered tabs. Returns whether the set changed. */
+	 * discovered vscode-sidebar panels and tabs. Returns whether the set
+	 * changed. */
 	private refreshSurfaces(): boolean {
 		const found = this.discoverTabSurfaces();
 		const next = new Set<SurfaceId>(AREAS as readonly string[]);
+		// Whole-panel surfaces exist whenever their panel host is mounted
+		// (the vscode-sidebar keeps panels mounted even while collapsed).
+		for (const panel of ["panel-right", "panel-bottom"] as const) {
+			if (this.sidebarPanelHost(panel === "panel-right" ? "right" : "bottom") !== null) next.add(panel);
+		}
 		for (const key of found.keys()) next.add(key);
 		for (const group of this.state.groups) next.add(group.id);
 		let changed = next.size !== this.surfaces.size;
@@ -479,15 +493,19 @@ export class BackgroundService {
 		for (const surface of this.allSurfaces()) {
 			if (surface.startsWith("group:")) {
 				rec[surface] = this.surfaceSlots(surface).some((slot) => slot.host !== null);
+			} else if (isTabSurface(surface)) {
+				rec[surface] = this.tabHosts.has(surface);
+			} else if (isPanelSurface(surface)) {
+				rec[surface] = this.areaHost(surface) !== null;
 			} else {
-				rec[surface] = isTabSurface(surface) ? this.tabHosts.has(surface) : true;
+				rec[surface] = true;
 			}
 		}
 		return rec;
 	}
 
 	/** Re-check availability and republish the snapshot when the set changed
-	 * (better-sidebar tabs come and go without any state change). Returns
+	 * (vscode-sidebar tabs come and go without any state change). Returns
 	 * whether the availability changed (callers may need a repaint). */
 	private syncAvailability(): boolean {
 		const next = this.computeAvailability();
@@ -662,7 +680,7 @@ export class BackgroundService {
 		const valid = members.filter((member) =>
 			!member.startsWith("group:")
 			&& !this.state.groups.some((g) => g.members.includes(member))
-			&& (AREAS as readonly string[]).includes(member as (typeof AREAS)[number]) ? true : isTabSurface(member)
+			&& ((AREAS as readonly string[]).includes(member as (typeof AREAS)[number]) || isTabSurface(member) || isPanelSurface(member))
 		);
 		if (valid.length < 2) return null;
 		let n = 0;
@@ -716,10 +734,16 @@ export class BackgroundService {
 			{ id: group.id, members },
 			...this.state.groups.slice(at + 1)
 		];
+		// The group no longer paints this member: its slice layers must go
+		// NOW — an orphaned slice keeps the group's media on top of the
+		// member's own layers and resurfaces when the member's images are
+		// later deleted.
+		this.removeSliceLayers(groupId, member);
 		const own = this.state.areas[member];
 		if (own !== undefined) own.enabled = own.images.length > 0;
 		if (members.length < 2) {
 			// Dissolve: the last member keeps the group's media.
+			this.removeSurfaceLayers(groupId);
 			this.state.groups = this.state.groups.filter((g) => g.id !== groupId);
 			this.lastGeometry.delete(groupId);
 			const cfg = this.state.areas[groupId];
@@ -740,7 +764,7 @@ export class BackgroundService {
 		const cfg = this.state.areas[surface];
 		if (cfg === undefined || cfg.images.length === 0) return;
 		for (const img of cfg.images) {
-			if (img.source === "file") {
+			if (img.source === "file" && !this.fileReferencedElsewhere(img.fileId, surface)) {
 				deleteStoredFile(img.fileId);
 				this.revokeFileUrl(img.fileId);
 			}
@@ -752,11 +776,26 @@ export class BackgroundService {
 		this.publish();
 	}
 
+	/** Whether another surface's config still references a local file id
+	 * (merged groups copy configs between members, so one stored blob can be
+	 * shared by several surfaces). */
+	private fileReferencedElsewhere(fileId: string, except: SurfaceId): boolean {
+		for (const [surface, cfg] of Object.entries(this.state.areas)) {
+			if (surface === except) continue;
+			if (cfg.images.some((img) => img.source === "file" && img.fileId === fileId)) return true;
+		}
+		return false;
+	}
+
 	/** Dissolve a merged group: the group's media lands on every member
 	 * (each becomes standalone again with its own copy). */
 	unmerge(groupId: SurfaceId): void {
 		const group = this.state.groups.find((g) => g.id === groupId);
 		if (group === undefined) return;
+		// The group's slice layers must go BEFORE the group leaves the state:
+		// surfaceSlots() reads state.groups, and leftover layers would keep
+		// painting the shared media over the members' own backgrounds.
+		this.removeSurfaceLayers(groupId);
 		this.state.groups = this.state.groups.filter((g) => g.id !== groupId);
 		this.lastGeometry.delete(groupId);
 		const cfg = this.state.areas[groupId];
@@ -771,6 +810,31 @@ export class BackgroundService {
 			delete this.state.areas[groupId];
 		}
 		this.publish();
+	}
+
+	/** Remove a surface's entire layer pair set (fade animations included).
+	 * A dissolved/removed merged group must not leave slice layers behind:
+	 * they sit inside the member hosts with the shared media painted and
+	 * would resurface the moment the member's own layers are cleared. */
+	private removeSurfaceLayers(surface: SurfaceId): void {
+		for (const slot of this.surfaceSlots(surface)) {
+			this.removeSliceLayers(surface, slot.slot);
+		}
+		if (this.fadeTimers[surface] !== undefined) {
+			clearTimeout(this.fadeTimers[surface]);
+			this.fadeTimers[surface] = undefined;
+		}
+	}
+
+	/** Remove ONE member's slice layers of a group (member left the group
+	 * but the group itself lives on). `slot` is the member's surface token
+	 * (the slot key the group painted under). */
+	private removeSliceLayers(groupId: SurfaceId, member: SurfaceId): void {
+		const slot = surfaceToken(member);
+		for (const which of [0, 1] as const) {
+			this.cancelLayerFade(this.layerId(groupId, slot, which));
+			this.removeLayer(groupId, slot, which);
+		}
 	}
 
 	/** Current image config for a surface (undefined when off or unset). */
@@ -845,6 +909,9 @@ export class BackgroundService {
 		if (surface.startsWith("panel-bottom:")) {
 			return { label: this.tabLabels.get(surface) ?? surface.slice("panel-bottom:".length), group: "panel-bottom", available: this.available[surface] ?? false, memberOf };
 		}
+		if (isPanelSurface(surface)) {
+			return { label: surface, group: surface === "panel-right" ? "panel-right" : "panel-bottom", available: this.available[surface] ?? false, memberOf };
+		}
 		return { label: surface, group: "builtin", available: true, memberOf };
 	}
 
@@ -894,6 +961,7 @@ export class BackgroundService {
 	/** The DOM host a surface's layers mount into. */
 	private areaHost(surface: SurfaceId): HTMLElement | null {
 		if (isTabSurface(surface)) return this.tabHosts.get(surface) ?? null;
+		if (isPanelSurface(surface)) return this.sidebarPanelHost(surface === "panel-right" ? "right" : "bottom");
 		switch (surface) {
 			case "sidebar": {
 				// The column is the settings trigger's ancestor whose parent
@@ -919,7 +987,7 @@ export class BackgroundService {
 				return document.querySelector("[data-conversation-composer-overlay]");
 			case "settings":
 				// Only the settings PANEL counts: it carries aria-labelledby,
-				// while the harness Modal primitive (used by better-sidebar's
+				// while the harness Modal primitive (used by vscode-sidebar's
 				// gear dialogs and others) carries aria-label — the settings
 				// background must not flip onto a transient modal.
 				return document.querySelector('[role="dialog"][aria-modal="true"][aria-labelledby]');
@@ -1016,7 +1084,7 @@ export class BackgroundService {
 		if (this.sameMedia(this.lastPainted[surface], target)) {
 			this.lastPainted[surface] = target !== undefined ? { ...target } : null;
 			// Same media = no crossfade — but the markers still need
-			// refreshing: a host blip (settings dialog closed, better-sidebar
+			// refreshing: a host blip (settings dialog closed, vscode-sidebar
 			// panel restructure) or an availability-triggered repaint may have
 			// flipped a member marker off, and nothing else re-enables the
 			// shell transparency CSS (a missing marker = opaque content over
@@ -1140,14 +1208,19 @@ export class BackgroundService {
 					if (effective) host.setAttribute("data-dshbg-tab-on", "true");
 					else host.removeAttribute("data-dshbg-tab-on");
 				}
+			} else if (isPanelSurface(surface)) {
+				if (host instanceof HTMLElement) {
+					if (effective) host.setAttribute("data-dshbg-panel-on", "true");
+					else host.removeAttribute("data-dshbg-panel-on");
+				}
 			}
 			return;
 		}
 		document.documentElement.setAttribute(`data-dsh-bg-${token}`, on ? "on" : "off");
 		for (const slot of slots) {
 			if (slot.host === null) {
-				// Closed dialog/tab member: clear the built-in member marker
-				// (tab markers died with their host element).
+				// Closed dialog/tab/panel member: clear the built-in member
+				// marker (host markers died with their element).
 				if (slot.slot !== "" && !slot.slot.startsWith("tab-")) {
 					document.documentElement.setAttribute(`data-dsh-bg-${slot.slot}`, "off");
 				}
@@ -1156,6 +1229,10 @@ export class BackgroundService {
 			if (slot.slot.startsWith("tab-") && slot.host instanceof HTMLElement) {
 				if (on) slot.host.setAttribute("data-dshbg-tab-on", "true");
 				else slot.host.removeAttribute("data-dshbg-tab-on");
+			} else if (slot.slot === "panel-right" || slot.slot === "panel-bottom") {
+				// Whole-panel member: mark the panel host itself.
+				if (on) slot.host.setAttribute("data-dshbg-panel-on", "true");
+				else slot.host.removeAttribute("data-dshbg-panel-on");
 			} else {
 				// built-in member: its own transparency CSS keys on the
 				// member's data attribute
@@ -1169,11 +1246,11 @@ export class BackgroundService {
 	 * up across members). Null for non-group surfaces. */
 	private groupGeometryOf(surface: SurfaceId): Map<string, { w: number; h: number; dx: number; dy: number }> | null {
 		if (!surface.startsWith("group:")) return null;
-		// The better-sidebar bottom panel overlays the bottom of the center
+		// The vscode-sidebar bottom panel overlays the bottom of the center
 		// column: members it covers must not contribute their hidden strip to
 		// the canvas, or the picture reads as misaligned between surfaces.
 		let bottomTop: number | null = null;
-		const bottomPanel = this.betterPanelHost("bottom");
+		const bottomPanel = this.sidebarPanelHost("bottom");
 		if (bottomPanel !== null) {
 			const r = bottomPanel.getBoundingClientRect();
 			if (r.width > 0 && r.height > 0) bottomTop = r.top;
@@ -1181,6 +1258,10 @@ export class BackgroundService {
 		const entries: Array<{ slot: string; rect: DOMRect }> = [];
 		for (const slot of this.surfaceSlots(surface)) {
 			if (slot.host === null) continue;
+			// Closed vscode-sidebar panels stay mounted but hidden via
+			// visibility + transform: they still report a (translated) rect —
+			// including them would stretch the canvas off-screen.
+			if (getComputedStyle(slot.host).visibility === "hidden") continue;
 			const rect = slot.host.getBoundingClientRect();
 			// Hidden members (display:none tabs) report an all-zero rect —
 			// including them would pollute the canvas bounding box.

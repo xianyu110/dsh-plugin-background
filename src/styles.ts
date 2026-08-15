@@ -29,10 +29,10 @@ export const CSS = [
 	"#dsh-bg-layer-trajectory-a,#dsh-bg-layer-trajectory-b{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .45s ease,filter .3s ease}",
 	/* settings: absolute layer pairs inside the settings dialog panel */
 	"#dsh-bg-layer-settings-a,#dsh-bg-layer-settings-b{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .45s ease,filter .3s ease}",
-	/* better-sidebar tab surfaces: one layer pair per tab, absolutely
+	/* vscode-sidebar tab surfaces: one layer pair per tab, absolutely
 	 * positioned inside the tagged paneTab content div */
 	"div[id^=\"dsh-bg-layer-tab-\"]{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:0;transition:opacity .45s ease,filter .3s ease}",
-	/* paneTab is NOT positioned by better-sidebar — anchor our tab/group
+	/* paneTab is NOT positioned by vscode-sidebar — anchor our tab/group
 	 * layers to the tab div itself (otherwise they stretch across the whole
 	 * pane and slices misalign) */
 	"[data-dshbg-tab-surface]{position:relative!important}",
@@ -68,12 +68,17 @@ export const CSS = [
 	"html[data-dsh-bg-settings=on] [role=\"dialog\"][aria-modal=\"true\"][aria-labelledby]{background:transparent!important}",
 	"html[data-dsh-bg-settings=on] [role=\"dialog\"][aria-modal=\"true\"][aria-labelledby] > *:not([id^=\"dsh-bg-layer\"]){position:relative;z-index:1}",
 	"html[data-dsh-bg-settings=on] [role=\"dialog\"][aria-modal=\"true\"][aria-labelledby] *:not([id^=\"dsh-bg-layer\"]){background-color:transparent!important}",
-	/* better-sidebar tab surfaces: the tagged paneTab content div (marked by
+	/* vscode-sidebar tab surfaces: the tagged paneTab content div (marked by
 	 * the service with data-dshbg-tab-surface; data-dshbg-tab-on marks the
 	 * enabled ones) goes transparent and its content rises above the layers */
 	"[data-dshbg-tab-surface][data-dshbg-tab-on]{background:transparent!important}",
 	"[data-dshbg-tab-surface][data-dshbg-tab-on] > *:not([id^=\"dsh-bg-layer\"]){position:relative;z-index:1}",
 	"[data-dshbg-tab-surface][data-dshbg-tab-on] *:not([id^=\"dsh-bg-layer\"]){background-color:transparent!important}",
+	/* whole vscode-sidebar panel surfaces: the entire panel (whatever tab is
+	 * inside) goes transparent and its content rises above the layers */
+	"[data-dshbg-panel-on]{background:transparent!important}",
+	"[data-dshbg-panel-on] > *:not([id^=\"dsh-bg-layer\"]){position:relative;z-index:1}",
+	"[data-dshbg-panel-on] *:not([id^=\"dsh-bg-layer\"]){background-color:transparent!important}",
 	/* ---- settings UI ---- */
 	".dshbg-root{flex-direction:column;gap:18px;display:flex}",
 	".dshbg-head{flex-direction:column;gap:4px;display:flex}",

@@ -10,29 +10,30 @@ DeepSeek Harness Web 界面的背景插件：为对话区、轨迹区、侧边�
 - 轮播间隔、顺序/随机、下一张；切换前预加载并交叉淡入，不会闪空
 - 勾选多个区域后添加，同一批图可一次落到多个区域
 - 拖拽两个区域可**合并为一张跨区域大图**（多显示器壁纸效果），拖出即拆分
-- 兼容 [dsh-better-sidebar](https://github.com/gameswu/dsh-plugin-vscode-sidebar)：其右侧/底部面板的每个标签页都可作为独立背景区域
+- 兼容 [dsh-plugin-vscode-sidebar](https://github.com/gameswu/dsh-plugin-vscode-sidebar)：其右侧面板、下侧面板整体以及其中每个标签页都可作为独立背景区域
 
 ## 安装
 
-插件通过 profile 的 pnpm 环境安装（`dsh plugin` 即把 pnpm 参数转发到 profile 目录）：
+本插件是一个自带补丁层的**组合包**（`dsh.bundle` + `cordis.patch.yml`）。用 `dsh plugin` 安装即可——它把参数转发给 profile 的 pnpm，并自动把包挂载进 `dsh.profile.bundles`，无需手动编辑任何配置文件：
 
 ```bash
 # 从本地路径安装（<路径>/background 为本仓库目录）
 dsh plugin --profile web add <路径>/background
 
-# 或者从 GitHub 安装
-dsh plugin --profile web add github:gameswu/dsh-plugin-background
+# 或从 GitHub 安装（建议锁定 commit）
+dsh plugin --profile web add github:gameswu/dsh-plugin-background#<sha>
 ```
 
-然后在 profile 的补丁层挂载（`$DSH_HOME/profiles/web/cordis.patch.yml`）：
+从 GitHub 安装时，pnpm 会在安装后运行本包的 `prepare` 脚本构建 `lib/client.js`；pnpm ≥10 默认拒绝执行，首次 `add` 会失败并提示把包键加入该 profile 的 `pnpm-workspace.yaml` 后重试：
 
 ```yaml
-- insert:
-    - id: ui-background
-      name: dsh-plugin-background
+allowBuilds:
+  dsh-plugin-background: true
 ```
 
-重启 Web 界面（`dsh web`）后生效。
+> 授权构建意味着安装时会在你的机器上执行本包的构建脚本——请只对可信来源授权。
+
+安装完成后重启 Web 界面（`dsh web`）即可生效。
 
 ## 使用
 
@@ -46,12 +47,12 @@ dsh plugin --profile web add github:gameswu/dsh-plugin-background
 ## 更新与开发
 
 ```bash
-npm install          # 开发依赖：esbuild + typescript
-npm run build        # 打包 → lib/client.js
-npm run typecheck    # 类型检查
+pnpm install        # 安装依赖（esbuild 为构建依赖，typescript 仅开发用）
+pnpm build          # 打包 → lib/client.js
+pnpm typecheck      # 类型检查
 ```
 
-重新构建后把 `lib/client.js` 同步到已安装副本，再硬刷新浏览器（Ctrl+Shift+R）即可，无需重启服务。
+本地路径安装（pnpm link）会直接使用本仓库的构建产物：重新构建后硬刷新浏览器（Ctrl+Shift+R）即可，无需重启服务。
 
 ## License
 

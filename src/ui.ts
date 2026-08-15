@@ -320,7 +320,7 @@ function EditorPanel(props: {
  * The Background settings UI: a unified surface list replaces the old
  * "one area at a time" segmented control plus the overlapping "apply to"
  * chips. Every surface (the four built-in areas and every open
- * dsh-better-sidebar tab) is a row:
+ * dsh-plugin-vscode-sidebar tab) is a row:
  * - the CHECKBOX marks add targets (a batch lands on every checked row);
  * - clicking the row FOCUSES it (the detail editor below edits that
  * surface); with nothing checked, adds fall back to the focused row.
@@ -399,13 +399,15 @@ export function BackgroundSection(props: BackgroundSectionProps) {
 		const meta = s.meta[id];
 		if (meta === undefined) return id;
 		if (meta.group === "group") return `${t("group.name")}${meta.members !== undefined && meta.members.length > 0 ? `（${meta.members.length}）` : ""}`;
-		return meta.group === "builtin" ? t(`area.${id}`) : meta.label;
+		// Built-in areas and WHOLE panels (id === group) carry their own
+		// locale labels; per-tab surfaces use the discovered tab title.
+		return meta.group === "builtin" || id === meta.group ? t(`area.${id}`) : meta.label;
 	};
 
 	const memberLabel = (id: SurfaceId): string => {
 		const meta = s.meta[id];
 		if (meta === undefined) return id;
-		return meta.group === "builtin" ? t(`area.${id}`) : meta.label;
+		return meta.group === "builtin" || id === meta.group ? t(`area.${id}`) : meta.label;
 	};
 
 	const groupOf = (id: SurfaceId): SurfaceGroup => s.meta[id]?.group ?? "builtin";

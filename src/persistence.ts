@@ -16,9 +16,11 @@ export function freshState(): BackgroundState {
 }
 
 /** True when a stored surface key is recognized: one of the built-in areas,
- * or a dsh-better-sidebar tab surface (panel-right:/panel-bottom: + title). */
+ * a whole vscode-sidebar panel (panel-right / panel-bottom), or one of its
+ * tab surfaces (panel-right:/panel-bottom: + title). */
 function validSurfaceKey(key: string): boolean {
 	if ((AREAS as readonly string[]).includes(key)) return true;
+	if (key === "panel-right" || key === "panel-bottom") return true;
 	if (key.startsWith("panel-right:") || key.startsWith("panel-bottom:")) return true;
 	// Merged-group surfaces persist their media like any other surface.
 	return key.startsWith("group:");

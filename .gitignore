@@ -1,7 +1,7 @@
 # ── 依赖 ──────────────────────────────────────────────
 node_modules/
 
-# ── 构建产物（lib/client.js 由 esbuild 生成，用 npm run build 重建）──
+# ── 构建产物（lib/client.js 由 esbuild 生成，用 pnpm build 重建）──
 lib/client.js
 
 # ── 本地环境 / 敏感信息 ───────────────────────────────
