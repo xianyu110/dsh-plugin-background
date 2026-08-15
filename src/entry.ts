@@ -10,7 +10,7 @@ import { BackgroundCard } from "./ui";
 import { zh, en } from "./locales";
 import { AREAS, DEFAULT_STATE, STORAGE_KEY } from "./constants";
 import { CSS } from "./styles";
-import type { AreaId, BackgroundSnapshot, ImageConfig, SurfaceId } from "./types";
+import type { BackgroundSnapshot, ImageConfig, SurfaceId } from "./types";
 
 /** Variables injected by the build banner (see build.mjs). */
 declare const module: { exports: Record<string, unknown> };
@@ -70,14 +70,14 @@ export function apply(ctx: PluginCtx): void {
 		bound = actions;
 		sync(background.getState());
 		return {
-			addImages: (area: AreaId, images: ImageConfig[]) => background.addImages(area, images),
-			removeImage: (area: AreaId, index: number) => background.removeImage(area, index),
-			updateImage: (area: AreaId, index: number, patch: Partial<ImageConfig>) => background.updateImage(area, index, patch),
-			setEnabled: (area: AreaId, enabled: boolean) => background.setEnabled(area, enabled),
-			setIntervalSec: (area: AreaId, seconds: number) => background.setIntervalSec(area, seconds),
-			setRandom: (area: AreaId, random: boolean) => background.setRandom(area, random),
-			next: (area: AreaId) => background.next(area),
-			showImage: (area: AreaId, index: number) => background.showImage(area, index),
+			addImages: (surface: SurfaceId, images: ImageConfig[]) => background.addImages(surface, images),
+			removeImage: (surface: SurfaceId, index: number) => background.removeImage(surface, index),
+			updateImage: (surface: SurfaceId, index: number, patch: Partial<ImageConfig>) => background.updateImage(surface, index, patch),
+			setEnabled: (surface: SurfaceId, enabled: boolean) => background.setEnabled(surface, enabled),
+			setIntervalSec: (surface: SurfaceId, seconds: number) => background.setIntervalSec(surface, seconds),
+			setRandom: (surface: SurfaceId, random: boolean) => background.setRandom(surface, random),
+			next: (surface: SurfaceId) => background.next(surface),
+			showImage: (surface: SurfaceId, index: number) => background.showImage(surface, index),
 			resolvePreview: (img: ImageConfig) => background.displayUrlOf(img),
 			mergeSurfaces: (members: SurfaceId[]) => background.mergeSurfaces(members),
 			unmerge: (groupId: SurfaceId) => background.unmerge(groupId),

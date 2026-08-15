@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-background",
-  "version": "0.5.0",
+  "version": "0.2.0",
   "description": "Web GUI background plugin: per-area image groups with per-image display and rendering config (fill/fit/stretch/tile/center/custom + position, scale, size, repeat, rotation, radius, opacity, blur), slideshow playback, and local file/folder picking stored as IndexedDB blobs (no base64 packing); own settings section. TypeScript sources, esbuild-built bundle.",
   "type": "module",
   "main": "lib/index.js",

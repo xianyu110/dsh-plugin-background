@@ -14,11 +14,6 @@ import type { PickerAccept } from "./files";
 import type { ImageConfig, SurfaceGroup, SurfaceId } from "./types";
 import type { BackgroundRowState } from "./store";
 
-/** Replace {placeholders} in a locale template. */
-function fmt(template: string, vars: Record<string, string | number>): string {
-	return template.replace(/\{(\w+)\}/g, (_, key: string) => String(vars[key] ?? ""));
-}
-
 /** Drag payload travelling inside HTML5 drag & drop. The payload lives in
  * `dataTransfer` (the only place readable at drop time in every browser) —
  * React state is only a visual fallback, never the source of truth. */
@@ -349,8 +344,10 @@ export function BackgroundSection(props: BackgroundSectionProps) {
 	/** Surfaces in display order. */
 	const surfaces = Object.keys(s.areas).filter((id) => s.meta[id] !== undefined);
 	const availableSurfaces = surfaces.filter((id) => s.meta[id].available);
-	/** The surface being edited (falls back when the focused one vanished). */
-	const focusSurface: SurfaceId = availableSurfaces.includes(focus) ? focus : (availableSurfaces[0] ?? "conversation");
+	/** The surface being edited. Grayed rows (closed tabs) stay focusable so
+	 * their config can still be edited or cleared; falls back when the
+	 * focused surface vanished entirely. */
+	const focusSurface: SurfaceId = surfaces.includes(focus) ? focus : (availableSurfaces[0] ?? "conversation");
 	const cfg = s.areas[focusSurface] ?? { enabled: false, images: [] as ImageConfig[], intervalSec: 15, random: false, index: 0 };
 	const selectedImg = selected !== null ? cfg.images[selected] : undefined;
 	/** Add targets: checked rows win; with none checked, the focused row. */
@@ -422,11 +419,7 @@ export function BackgroundSection(props: BackgroundSectionProps) {
 		setDropTarget(null);
 		const effective = payload ?? drag;
 		setDrag(null);
-		if (effective === null) {
-			console.log("[dsh-bg] drop on row without payload — ignored", targetId);
-			return;
-		}
-		console.log("[dsh-bg] drop on row", targetId, effective);
+		if (effective === null) return;
 		if (effective.kind === "member") {
 			// Dropping a member onto ANOTHER group's row (or member row) moves
 			// it there; onto its own group (or a non-group row) detaches it.
@@ -463,7 +456,6 @@ export function BackgroundSection(props: BackgroundSectionProps) {
 			setDropTarget(null);
 			return;
 		}
-		console.log("[dsh-bg] drop outside rows", effective, "last row:", dropTarget);
 		if (effective.kind === "member") {
 			setDropTarget(null);
 			removeMemberFromGroup(effective.groupId ?? "", effective.id);
@@ -674,7 +666,7 @@ export function BackgroundSection(props: BackgroundSectionProps) {
 														children: "×"
 													})
 												]
-											}) : inGroup ? jsx("span", { className: "dshbg-surfaceBadge", children: `${t("group.memberBadge")} ${meta?.memberOf ?? ""}` }) : null,
+											}) : inGroup ? jsx("span", { className: "dshbg-surfaceBadge", children: t("group.memberBadge") }) : null,
 											jsx("span", { className: "dshbg-surfaceCount", children: count > 0 ? String(count) : "" })
 										]
 									})
